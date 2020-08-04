@@ -1,7 +1,3 @@
-### Week 1 - RMarkdown Homework
+## Welcome to my progress journal for IE48A - Essentials of Data Analytics course.
 
-TBD
-
-### Homework 2 - TBD
-
-### Homework 3 - TBD
+You can see what I have done for the course on this page. 
