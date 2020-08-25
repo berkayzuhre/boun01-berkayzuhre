@@ -2,5 +2,8 @@
 
 You can see what I have done for the course on this page. 
 
-## Homework1
-[My RMarkdown Assignment](https://pjournal.github.io/boun01-berkayzuhre/Homework0/RMarkdownHomework.html) 
+## Assignment1
+[My RMarkdown Assignment1](https://pjournal.github.io/boun01-berkayzuhre/Homework0/RMarkdownHomework.html) 
+
+## Assignment2
+[My RMarkdown Assignment2](https://pjournal.github.io/boun01-berkayzuhre/Assignment2/Homework2.html) 
