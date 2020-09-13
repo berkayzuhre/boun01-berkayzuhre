@@ -1,0 +1,160 @@
+---
+title: "Assignment 3: Diamonds Price Estimation"
+author: "Berkay Zühre"
+date: "9/13/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Diamonds Price Estimation
+
+In this assignment diamond prices are predicted according to their varying features. The dataset, training set and the test set are already provided in this site <https://mef-bda503.github.io/archive/fall17/files/assignment_diamonds_data.html>.
+
+```{r include=FALSE, message=FALSE}
+set.seed(503)
+library(tidyverse)
+library(DMwR)
+library(rpart) #To construct CART models
+library(rpart.plot) # It also includes titanic data
+library(rattle)
+library(randomForest)
+```
+
+## Glimpse at data
+
+**Column Explanations:**
+
+* price:
+  + price in US dollars (\$326–\$18,823)
+
+* carat
+  + weight of the diamond (0.2–5.01)
+
+* cut
+  + quality of the cut (Fair, Good, Very Good, Premium, Ideal)
+
+* color
+  + diamond colour, from D (best) to J (worst)
+
+* clarity
+  + a measurement of how clear the diamond is (I1 (worst), SI2, SI1, VS2, VS1, VVS2, VVS1, IF (best))
+
+* x
+  + length in mm (0–10.74)
+
+* y
+  + width in mm (0–58.9)
+
+* z
+  + depth in mm (0–31.8)
+  
+*depth
+  +total depth percentage = z / mean(x, y) = 2 * z / (x + y) (43–79)
+
+*table
+  +width of top of diamond relative to widest point (43–95)
+```{r, echo=TRUE}
+glimpse(diamonds)
+```
+
+## Preprocessing
+
+For this part I got help from the steps described here. <https://thepythonguru.com/applying-predictive-analysis-on-diamond-prices/>. I also added my own interpretation the preprocessing.
+
+There are 20 rows of data with missing one of the x, y, z values. Since our dataset has more than 50000 rows, it is okay to just remove these rows. 
+```{r echo=TRUE}
+dim(diamonds[!(diamonds$x>0 & diamonds$y >0 & diamonds$z>0),])[1]
+
+diamonds_filtered<-diamonds[(diamonds$x>0 & diamonds$y >0 & diamonds$z>0),]
+```
+
+Min and max values for x, y, z columns were given in the glimpse data section. However mean and standard deviation values are way lower than the max values given there. There might be some errors in the data that caused these values to look much higher than they should be. For that reason I check out the rows that are outside of the 3 sigma interval.
+
+```{r echo TRUE}
+x<-(diamonds_filtered$x<(mean(diamonds_filtered$x)+3*sd(diamonds_filtered$x)) & diamonds_filtered$x>(mean(diamonds_filtered$x)-3*sd(diamonds_filtered$x)))
+
+y<-(diamonds_filtered$y<(mean(diamonds_filtered$y)+3*sd(diamonds_filtered$y)) & diamonds_filtered$y>(mean(diamonds_filtered$y)-3*sd(diamonds_filtered$y)))
+
+z<-(diamonds_filtered$z<(mean(diamonds_filtered$z)+3*sd(diamonds_filtered$z)) & diamonds_filtered$z>(mean(diamonds_filtered$z)-3*sd(diamonds_filtered$z)))
+
+outliers<-diamonds_filtered[!(x & y & z),]
+dim(outliers)[1]
+```
+There are 51 rows of data with outlier values. That is still a reasonable number of rows that we can ignore, so they do not dilute our prediction model.
+
+```{r echo=TRUE}
+diamonds_filtered<-diamonds_filtered[(x & y & z),]
+```
+
+Depth column is a function of the x, y, z columns so should be automatically fixed by previous filters. Table column is a relative value as well, I think it is an already "scaled" value so I leave it at that as well.
+
+As it can be seen in the plots below, we didn't do anything with Carat parameter but the outliers disappeared from the data set when we filter (x,y,z) outliers. Number of the rows we deleted correspond to the 0.13% of entire data. One problem about this situation is that the columns are not independent from each other, that should be kept in mind.
+
+```{r echo=FALSE}
+diamonds_filtered2<-diamonds_filtered
+diamonds_filtered2<-diamonds_filtered%>% mutate(diamond_id = row_number())
+ggplot(diamonds_filtered2,aes(x=diamond_id,y=carat, alpha=0.1))+geom_point() + ggtitle("Carat vs Diamond ID without (x,y,z) Outliers") + labs(x = "ID", y = "Carat") + ylim(0,5.1)
+
+diamonds_filtered3<-diamonds%>% mutate(diamond_id = row_number())
+ggplot(diamonds_filtered3,aes(x=diamond_id,y=carat,alpha=0.1))+geom_point() + ggtitle("Carat vs Diamond ID with (x,y,z) Outliers") + labs(x = "ID", y = "Carat") + ylim(0,5.1)
+
+remove(diamonds_filtered3)
+remove(diamonds_filtered2)
+```
+
+At this point test and training data sets can be created from the filtered data set.
+```{r}
+diamonds_test <- diamonds_filtered %>% mutate(diamond_id = row_number()) %>% 
+    group_by(cut, color, clarity) %>% sample_frac(0.2) %>% ungroup()
+
+diamonds_train <- anti_join(diamonds_filtered %>% mutate(diamond_id = row_number()), 
+    diamonds_test, by = "diamond_id")
+```
+
+## Supervised Learning (Regression and Classification)
+
+### Linear Regression
+First, the parameters to be used in the model should be selected. Scatter Plot Matrix below gives a general idea about the relationships between the columns.
+```{r}
+pairs(price~carat+depth+table+clarity+cut+color,data=diamonds_filtered,
+   main="Diamonds Scatterplot Matrix")
+```
+
+I tried several combinations, in the last try I removed (x,y,z) from the model because it already exists in the depth variable.
+```{r}
+diamond_model<-lm(price ~.-diamond_id-x-y-z-price, data=diamonds_train)
+summary(diamond_model)
+```
+Error values are rather high. So I try another model. I see that lm model automatically converts categoric variables to different columns. Since the data type was "Ordinal" I thought their ordered nature was already included in the data. That might not be the case for this model.
+```{r}
+diamond_Pred<-predict(diamond_model, diamonds_test)
+actuals_preds <- data.frame(cbind(actuals=diamonds_test$price, predicteds=diamond_Pred))
+regr.eval(actuals_preds$actuals, actuals_preds$predicteds)
+```
+Here I try a regression tree. Different parameters were tried to increase the depth of the tree however it stayed the same. That convinced me that the models result are the best it can do within the current setup.
+```{r}
+diamond_model_2 <- rpart(price ~ .-diamond_id-depth, data=diamonds_train, control = list(minsplit = 500, maxdepth=30,xval=10))
+fancyRpartPlot(diamond_model_2)
+```
+I still find the error level rather high. To decrease it, I decided to use a more advanced random forest model.
+```{r}
+diamond_predict <- predict(diamond_model_2,newdata=diamonds_test)
+
+actuals_preds_2 <- data.frame(cbind(actuals=diamonds_test$price, predicteds=diamond_predict))
+
+regr.eval(actuals_preds_2$actuals, actuals_preds_2$predicteds)
+```
+
+Random Forest Algorithm performed better compared to other models. As the "ntree" increased "rmse" value decreased substantially however run time increased as well. To keep the run time in reasonable levels I found 100 enough. I have chosen the number of variables to use as four because it is known that parameters are not independent from each other so a small subset should have been enough for a forecast.
+```{r}
+# Perform training:
+rf_classifier = randomForest(price ~ .-diamond_id-price, data=diamonds_train, ntree=100, mtry=4, importance=TRUE)
+rf_classifier
+diamond_predict_3 <- predict(rf_classifier,newdata=diamonds_test)
+actuals_preds_3 <- data.frame(cbind(actuals=diamonds_test$price, predicteds=diamond_predict_3))
+regr.eval(actuals_preds_3$actuals, actuals_preds_3$predicteds)
+
+```
