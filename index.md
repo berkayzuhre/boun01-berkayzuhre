@@ -12,4 +12,4 @@ You can see what I have done for the course on this page.
 [My RMarkdown Assignment2](https://pjournal.github.io/boun01-berkayzuhre/Assignment2/Homework2.html)
 
 ## In Class Assignment - Kaggle Notebook Analysis
-[Data Exploration on NYC Airbnb](InclassExercise.html) 
+[Data Exploration on NYC Airbnb](https://pjournal.github.io/boun01-berkayzuhre/InclassExercise.html) 
